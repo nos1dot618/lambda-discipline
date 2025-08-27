@@ -2,11 +2,12 @@
 #include <lbd/fe/ast.h>
 #include <lbd/fe/lexer.h>
 #include <lbd/fe/parser.h>
+#include <lbd/intp/interpreter.h>
 #include <string>
 #include <vector>
 
 int main() {
-    const std::string filepath = "../examples/std.lbd";
+    const std::string filepath = "../examples/shapes.lbd";
     auto lexer_v = fe::lexer::Lexer(filepath);
 
     const std::vector<fe::token::Token> tokens = lexer_v.lex_all();
@@ -16,6 +17,8 @@ int main() {
 
     const auto parser = fe::parser::Parser(tokens);
     std::cout << parser.program << std::endl;
+
+    auto result = intp::interp::interpret(parser.program);
 
     return 0;
 }

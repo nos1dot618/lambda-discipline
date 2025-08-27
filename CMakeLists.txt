@@ -17,6 +17,7 @@ add_library(fe STATIC
 
 add_library(intp STATIC
     ${CMAKE_SOURCE_DIR}/src/intp/types.cpp
+    ${CMAKE_SOURCE_DIR}/src/intp/interpreter.cpp
 )
 
 add_executable(lambda_discipline ${CMAKE_SOURCE_DIR}/src/main.cpp)
