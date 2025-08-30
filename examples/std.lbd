@@ -13,7 +13,6 @@ first: Any = \x: Any. \y: Any. x
 second: Any = \x: Any. \y: Any. y
 
 -- misc
--- TODO: Add support for ifzero and cmp
 -- TODO: Add support for `use`
 float_eq: Float -> Float -> Bool = \x: Float. \y: Float.
     (ifzero (cmp x y) true false)

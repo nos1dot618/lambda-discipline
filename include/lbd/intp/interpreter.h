@@ -27,6 +27,7 @@ namespace intp::interp {
             const std::vector<std::shared_ptr<Thunk> > &, const std::shared_ptr<Env> &)>;
 
         std::size_t arity;
+        std::string name;
         Impl impl;
 
         friend std::ostream &operator<<(std::ostream &os, const NativeFunction &native_fn);
@@ -40,17 +41,20 @@ namespace intp::interp {
         mutable std::optional<Value> cached;
         const fe::ast::Expression *expr = nullptr; /// Non-owning, read-only AST pointer
         std::shared_ptr<Env> env; /// Environment for evaluating Expression
+        std::optional<fe::loc::Loc> origin = std::nullopt;
 
         Thunk() = default;
 
-        Thunk(const fe::ast::Expression *expr, std::shared_ptr<Env> env);
+        Thunk(const fe::ast::Expression *expr, std::shared_ptr<Env> env,
+              std::optional<fe::loc::Loc> origin = std::nullopt);
 
         /// Force computation on Thunk and return a const reference to Value
         const Value &force() const; /// Marked const as cached is mutable
 
         /// Sets Thunk's fields after construction
         /// Allows for recursive reference
-        void set(const fe::ast::Expression *expr_, std::shared_ptr<Env> env_);
+        void set(const fe::ast::Expression *expr_, std::shared_ptr<Env> env_,
+                 std::optional<fe::loc::Loc> origin_ = std::nullopt);
     };
 
     struct Env : std::enable_shared_from_this<Env> {
@@ -67,7 +71,7 @@ namespace intp::interp {
     Value eval_expr(const fe::ast::Expression &expr, std::shared_ptr<Env> env);
 
     Value apply_fn_apl(Value fn_value, const std::vector<std::shared_ptr<Thunk> > &args,
-                const std::shared_ptr<Env> &call_site_env);
+                       const std::shared_ptr<Env> &call_site_env, const std::optional<fe::loc::Loc> &call_loc = std::nullopt);
 
     /// Program Driver
     struct Result {

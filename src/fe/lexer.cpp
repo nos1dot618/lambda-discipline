@@ -64,6 +64,7 @@ namespace fe::lexer {
             return {token::Iden{value}, cur_loc};
         }
         // Float
+        // TODO: Negative numbers
         if (std::isdigit(c)) {
             const size_t start = pos;
             while (std::isdigit(c)) {

@@ -7,7 +7,7 @@
 #include <vector>
 
 int main() {
-    const std::string filepath = "../examples/shapes.lbd";
+    const std::string filepath = "../examples/math_demos.lbd";
     auto lexer_v = fe::lexer::Lexer(filepath);
 
     const std::vector<fe::token::Token> tokens = lexer_v.lex_all();
