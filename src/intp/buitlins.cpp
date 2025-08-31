@@ -78,7 +78,7 @@ namespace intp::interp {
                 }
                 const double num1 = std::get<double>(value1);
                 const double num2 = std::get<double>(value2);
-                const int result = (num1 < num2) ? -1 : (num1 > num2 ? 1 : 0);
+                const int result = (num1 < num2) ? -1 : num1 > num2 ? 1 : 0;
                 return Value{static_cast<double>(result)};
             }
         };

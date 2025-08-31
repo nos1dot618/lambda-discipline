@@ -1,33 +1,6 @@
--- TODO: Add support for `use`
--- Copied from std.lbd
--- booleans and conditions
-true: Bool = \x: Any. \y: Any. x
-false: Bool = \x: Any. \y: Any. y
-
-if_then: Any = \condition: Any.
-    \then_clause: Any. \else_clause: Any.
-    (condition then_clause else_clause)
-
--- pairs
-pair: Any = \x: Any. \y: Any. \fn: Any. (fn x y)
-
-first: Any = \x: Any. \y: Any. x
-second: Any = \x: Any. \y: Any. y
-
--- misc
-float_eq: Float -> Float -> Bool = \x: Float. \y: Float.
-    (if_zero (cmp x y) true false)
-
--- fibonacci: Any = \num: Float.
---     (if_then (float_eq 0.0 num) 0.0
---         (if_then (float_eq 1.0 num) 1.0
---             (add (fibonacci (sub num 1.0)) (fibonacci (sub num 2.0)))))
-
--- fibonacci: Any = \num: Float. num
--- res: Float = \num: Float. (add (fibonacci (sub num 1)) (fibonacci (sub num 2)))
--- (print (res 10))
-
 fibonacci: Any = \num: Float.
-        (if_zero (float_eq 1 num) 1
-            (add (fibonacci (sub num 1)) (fibonacci (sub num 2))))
-(print (fibonacci 1))
+    (if_zero (cmp 0 num) 0
+        (if_zero (cmp 1 num) 1
+            (add (fibonacci (sub num 1.0)) (fibonacci (sub num 2.0)))))
+
+(print (fibonacci 10))

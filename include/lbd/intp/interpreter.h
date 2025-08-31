@@ -71,7 +71,8 @@ namespace intp::interp {
     Value eval_expr(const fe::ast::Expression &expr, std::shared_ptr<Env> env);
 
     Value apply_fn_apl(Value fn_value, const std::vector<std::shared_ptr<Thunk> > &args,
-                       const std::shared_ptr<Env> &call_site_env, const std::optional<fe::loc::Loc> &call_loc = std::nullopt);
+                       const std::shared_ptr<Env> &call_site_env,
+                       const std::optional<fe::loc::Loc> &call_loc = std::nullopt);
 
     /// Program Driver
     struct Result {

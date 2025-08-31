@@ -1,28 +1,23 @@
-#include <complex>
 #include <lbd/intp/interpreter.h>
+#include <lbd/intp/builtins.h>
 #include <lbd/error.h>
-#include <utility>
-
-#include "lbd/intp/builtins.h"
 
 namespace intp::interp {
     std::ostream &operator<<(std::ostream &os, const Closure &closure) {
-        // TODO: Improve this
         return os << "<closure " << closure.param << ">";
     }
 
     std::ostream &operator<<(std::ostream &os, const NativeFunction &native_fn) {
-        // TODO: Improve this
         return os << "<native_fn " << native_fn.name << " " << native_fn.arity << ">";
     }
 
     std::ostream &operator<<(std::ostream &os, const Value &value) {
         std::visit([&]<typename T0>(T0 &&arg) {
             using T = std::decay_t<T0>;
-            if constexpr (std::is_same_v<T, std::string>
-                          || std::is_same_v<T, double>
-                          || std::is_same_v<T, Closure>
-                          || std::is_same_v<T, NativeFunction>) {
+            if constexpr (std::is_same_v<T, std::string> ||
+                          std::is_same_v<T, double> ||
+                          std::is_same_v<T, Closure> ||
+                          std::is_same_v<T, NativeFunction>) {
                 os << arg;
             } else {
                 STATIC_ASSERT_UNREACHABLE_T(T, "unhandled runtime value");
@@ -132,153 +127,114 @@ namespace intp::interp {
         }, expr.value);
     }
 
-    //
-    // Value apply_fn_apl(Value fn_value, const std::vector<std::shared_ptr<Thunk> > &args,
-    //                    const std::shared_ptr<Env> &call_site_env, const std::optional<fe::loc::Loc> &call_loc) {
-    //     Value current_fn = std::move(fn_value);
-    //     size_t idx = 0;
-    //     std::cout << "debug: fn: " << current_fn << std::endl;
-    //     while (idx < args.size()) {
-    //         // Apply Argument to Closure (Lambda Expression)
-    //         std::optional<Value> resultant_value = std::nullopt;
-    //         if (std::holds_alternative<Closure>(current_fn)) {
-    //             const auto [param, body, env] = std::get<Closure>(current_fn);
-    //             const auto child_env = std::make_shared<Env>(env);
-    //             child_env->bind(param, args[idx]);
-    //             // Evaluate body in child Environment
-    //             resultant_value = eval_expr(*body, child_env);
-    //             ++idx;
-    //         }
-    //         // Apply Argument to Native Function
-    //         if (std::holds_alternative<NativeFunction>(current_fn)) {
-    //             // Using by reference and not creating a copy of Native Function
-    //             const auto &[arity, name, impl] = std::get<NativeFunction>(current_fn);
-    //             if (args.size() - idx < arity) {
-    //                 if (call_loc) {
-    //                     std::cerr << *call_loc << ": ";
-    //                 }
-    //                 std::cerr << "runtime error: native function "
-    //                         << name << " expects "
-    //                         << arity << " argument(s), found "
-    //                         << args.size() - idx
-    //                         << std::endl;
-    //                 exit(EXIT_FAILURE);
-    //             }
-    //             std::vector<std::shared_ptr<Thunk> > slice;
-    //             slice.reserve(arity);
-    //             for (size_t i = 0; i < arity; ++i) {
-    //                 slice.push_back(args[idx + i]);
-    //             }
-    //             resultant_value = impl(slice, call_site_env);
-    //             idx += arity;
-    //         }
-    //         if (resultant_value) {
-    //             if (std::holds_alternative<Closure>(*resultant_value) ||
-    //                 std::holds_alternative<NativeFunction>(*resultant_value)) {
-    //                 current_fn = std::move(*resultant_value);
-    //                 continue;
-    //             }
-    //         }
-    //         if (call_loc) {
-    //             std::cerr << *call_loc << ": ";
-    //         }
-    //         std::cerr << "runtime error: trying to apply non-function value "
-    //                 << current_fn
-    //                 << std::endl;
-    //         exit(EXIT_FAILURE);
-    //     }
-    //     return current_fn;
-    // }
-
-    Value apply_fn_apl(Value fn_value,
-                       const std::vector<std::shared_ptr<Thunk> > &args,
-                       const std::shared_ptr<Env> &call_site_env,
-                       const std::optional<fe::loc::Loc> &call_loc) {
-        Value current_fn = std::move(fn_value);
-        size_t idx = 0;
-
-        std::cout << "debug: fn: " << current_fn << std::endl;
-
-        while (idx < args.size()) {
-            std::optional<Value> resultant_value; // value returned by applying one step
-
-            // --- Closure (user lambda) branch ---
-            if (std::holds_alternative<Closure>(current_fn)) {
-                const auto [param, body, env] = std::get<Closure>(current_fn);
-                auto child_env = std::make_shared<Env>(env);
-                child_env->bind(param, args[idx]);
-
-                // Evaluate the lambda body in the child env
-                resultant_value = eval_expr(*body, child_env);
-                ++idx; // we consumed one argument (the parameter)
-            }
-            // --- Native function branch ---
-            else if (std::holds_alternative<NativeFunction>(current_fn)) {
-                const auto &nf = std::get<NativeFunction>(current_fn);
-                const auto &arity = nf.arity;
-                const auto &name = nf.name;
-                const auto &impl = nf.impl;
-
-                if (args.size() - idx < arity) {
-                    if (call_loc) std::cerr << *call_loc << ": ";
-                    std::cerr << "runtime error: native function "
-                            << name << " expects " << arity
-                            << " argument(s), found " << (args.size() - idx)
-                            << std::endl;
-                    std::exit(EXIT_FAILURE);
-                }
-
-                // collect the next `arity` thunks
-                std::vector<std::shared_ptr<Thunk> > slice;
-                slice.reserve(arity);
-                for (size_t i = 0; i < arity; ++i) slice.push_back(args[idx + i]);
-
-                resultant_value = impl(slice, call_site_env);
-                idx += arity; // consumed `arity` args
-            }
-            // --- Not a function when there are still args left: error ---
-            else {
-                if (call_loc) std::cerr << *call_loc << ": ";
-                std::cerr << "runtime error: trying to apply non-function value "
-                        << current_fn << std::endl;
-                std::exit(EXIT_FAILURE);
-            }
-
-            // If the application produced a value (it always should)
-            if (resultant_value.has_value()) {
-                std::cout << "debug: result: " << *resultant_value << std::endl;
-
-                // If the returned value is a function, curry: continue applying remaining args.
-                if (std::holds_alternative<Closure>(*resultant_value) ||
-                    std::holds_alternative<NativeFunction>(*resultant_value)) {
-                    current_fn = std::move(*resultant_value);
-                    continue; // try to apply remaining args to this new function
-                }
-
-                // Otherwise the returned value is a terminal (non-function).
-                // If we've consumed all arguments for the original call, return it.
-                if (idx >= args.size()) {
-                    return *resultant_value;
-                }
-
-                // Otherwise there are still args left but we got a non-function — that's an error.
-                if (call_loc) std::cerr << *call_loc << ": ";
-                std::cerr << "runtime error: too many arguments applied to non-function value "
-                        << *resultant_value << std::endl;
-                std::exit(EXIT_FAILURE);
-            }
-
-            // Defensive: we should never reach here, but keep an explicit guard.
-            if (call_loc) std::cerr << *call_loc << ": ";
-            std::cerr << "runtime error: internal apply error" << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
-
-        // If we consumed all args and still have a function value (e.g., partial application),
-        // return the function (curried function).
-        return current_fn;
+    static std::shared_ptr<Thunk> value_to_thunk(const Value &v) {
+        auto t = std::make_shared<Thunk>();
+        t->cached = v;
+        return t;
     }
 
+    static std::ostream &print_loc_prefix(std::ostream &os, const std::optional<fe::loc::Loc> &loc) {
+        if (loc) {
+            return os << *loc << ": ";
+        }
+        return os;
+    }
+
+    Value apply_fn_apl(Value fn_value, const std::vector<std::shared_ptr<Thunk> > &args,
+                       const std::shared_ptr<Env> &call_site_env, const std::optional<fe::loc::Loc> &call_loc) {
+        // Local mutable copy of the args, for inserting evaluated values as Thunks when needed.
+        std::vector<std::shared_ptr<Thunk> > work_args = args;
+        // Frame Stack: Functions to which we are currently applying Arguments.
+        // Start with the initial Function.
+        std::vector<Value> frames;
+        frames.push_back(std::move(fn_value));
+        size_t idx = 0; // Index of next Thunk to consume from work_args
+        while (true) {
+            // If there are no frames left, that's unexpected (shouldn't happen), bail.
+            if (frames.empty()) {
+                print_loc_prefix(std::cerr, call_loc)
+                        << "internal error: no function frame to apply" << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            // If we've consumed all available Argument Thunks:
+            if (idx >= work_args.size()) {
+                // If top frame is a function, and we have no more args to feed it,
+                // return that function (partial application) or its value as-is.
+                // If it's not a function (shouldn't happen), return it as value.
+                return frames.back();
+            }
+            // Work on the top-most frame
+            Value current_fn = frames.back();
+            std::optional<Value> resultant_value;
+            // Closure case: Closure consumes exactly one Argument (its Param)
+            if (std::holds_alternative<Closure>(current_fn)) {
+                const auto [param, body, env] = std::get<Closure>(current_fn);
+                const auto &arg_thunk = work_args[idx++];
+                const auto child_env = std::make_shared<Env>(env);
+                child_env->bind(param, arg_thunk);
+                resultant_value = eval_expr(*body, child_env);
+            }
+            // Native Function case: Consumes its arity-many Argument Thunks
+            else if (std::holds_alternative<NativeFunction>(current_fn)) {
+                const auto &[arity, name, impl] = std::get<NativeFunction>(current_fn);
+                if (work_args.size() - idx < arity) {
+                    print_loc_prefix(std::cerr, call_loc)
+                            << "runtime error: native function " << name
+                            << " expects " << arity << " argument(s), found "
+                            << (work_args.size() - idx) << std::endl;
+                    std::exit(EXIT_FAILURE);
+                }
+                std::vector<std::shared_ptr<Thunk> > slice;
+                slice.reserve(arity);
+                for (size_t i = 0; i < arity; ++i) {
+                    slice.push_back(work_args[idx + i]);
+                }
+                resultant_value = impl(slice, call_site_env);
+                idx += arity;
+            } else {
+                // Top frame is not a Function (Closure, NativeFunction) Value but there are still Arguments left
+                print_loc_prefix(std::cerr, call_loc)
+                        << "runtime error: trying to apply non-function value "
+                        << frames.back() << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            if (!resultant_value) {
+                print_loc_prefix(std::cerr, call_loc)
+                        << "internal error: application produced no result" << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            if (std::holds_alternative<Closure>(*resultant_value) ||
+                std::holds_alternative<NativeFunction>(*resultant_value)) {
+                // Replace the top Frame with the returned Function (curry)
+                frames.back() = std::move(*resultant_value);
+                continue;
+            }
+            // Resultant is a concrete Value (different from Function Value i.e. double, string).
+            // Pop the frame that produced it, and insert this Value as a thunk at the current idx
+            // so the previous Frame (if any) will consume it.
+            Value concrete = std::move(*resultant_value);
+            frames.pop_back();
+            // If there are no more Frames after popping, then this Value is the final result of the
+            // whole Function Application, but only valid if there are no further Argument Thunks remaining.
+            if (frames.empty()) {
+                if (idx < work_args.size()) {
+                    print_loc_prefix(std::cerr, call_loc)
+                            << "runtime error: too many arguments applied to non-function value "
+                            << concrete << std::endl;
+                    std::exit(EXIT_FAILURE);
+                }
+                // No Thunks remaining then concrete Value is the result
+                return concrete;
+            }
+            // There is a previous Frame; insert the concrete Value as a Thunk at the
+            // current index so the previous Frame will consume it on the next iteration.
+            auto inj_th = value_to_thunk(concrete);
+            work_args.insert(work_args.begin() + static_cast<int>(idx), inj_th);
+            // Do NOT advance idx: the inserted thunk is at position idx and will be consumed
+            // by the previous frame on the next iteration.
+            // Loop will continue with frames.back() being the previous frame.
+        }
+    }
 
     // Creates placeholder Thunk then set body so recursion can refer to it during lazy evaluation
     static void bind_def_ast_node_lazy(const fe::ast::DefAstNode &def_ast_node, const std::shared_ptr<Env> &env) {
