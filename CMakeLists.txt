@@ -24,6 +24,7 @@ add_library(intp STATIC
 add_executable(lbd
     ${CMAKE_SOURCE_DIR}/src/main.cpp
     ${CMAKE_SOURCE_DIR}/src/cmd.cpp
+    ${CMAKE_SOURCE_DIR}/src/repl.cpp
 )
 
 target_link_libraries(lbd PRIVATE fe intp)

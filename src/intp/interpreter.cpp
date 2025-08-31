@@ -243,23 +243,25 @@ namespace intp::interp {
         thunk->set(&def_ast_node.expr, env, def_ast_node.expr.get_loc());
     }
 
-    Result interpret(const fe::ast::Program &program) {
-        const auto global_env = std::make_shared<Env>();
-        install_builtins(global_env);
+    Result interpret(const fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env) {
+        if (!global_env) {
+            global_env = std::make_shared<Env>();
+        }
+        Value result_value;
+        install_builtins(*global_env);
         for (const auto &[value]: program.nodes) {
             std::visit([&]<typename T0>(T0 &&arg) {
                 using T = std::decay_t<T0>;
                 if constexpr (std::is_same_v<T, fe::ast::Expression>) {
-                    eval_expr(arg, global_env);
-                    // The top level Value returned by this is not needed
+                    result_value = eval_expr(arg, *global_env);
                 } else if constexpr (std::is_same_v<T, fe::ast::DefAstNode>) {
-                    bind_def_ast_node_lazy(arg, global_env);
+                    bind_def_ast_node_lazy(arg, *global_env);
                 } else {
                     STATIC_ASSERT_UNREACHABLE_T(T, "unhandled program node");
                 }
             }, value);
         }
-        return {global_env};
+        return {*global_env, result_value};
     }
 
     void install_builtins(const std::shared_ptr<Env> &env) {

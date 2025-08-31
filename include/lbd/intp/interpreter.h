@@ -77,9 +77,10 @@ namespace intp::interp {
     /// Program Driver
     struct Result {
         std::shared_ptr<Env> global_env;
+        Value value;
     };
 
-    Result interpret(const fe::ast::Program &program);
+    Result interpret(const fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env = std::nullopt);
 
     /// Add builtins Native Functions into Environment
     void install_builtins(const std::shared_ptr<Env> &env);
