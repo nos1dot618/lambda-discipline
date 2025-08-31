@@ -28,7 +28,7 @@ int main(const int argc, char **argv) {
             }
         }
         // Parse
-        const auto parser = fe::parser::Parser(tokens);
+        auto parser = fe::parser::Parser(tokens);
         if (debug) {
             std::cout << parser.program << std::endl;
         }

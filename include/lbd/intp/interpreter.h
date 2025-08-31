@@ -40,6 +40,7 @@ namespace intp::interp {
     struct Thunk : std::enable_shared_from_this<Thunk> {
         mutable std::optional<Value> cached;
         const fe::ast::Expression *expr = nullptr; /// Non-owning, read-only AST pointer
+        std::unique_ptr<fe::ast::Expression> owned; /// Owning storage (when needed) (primarily in REPL)
         std::shared_ptr<Env> env; /// Environment for evaluating Expression
         std::optional<fe::loc::Loc> origin = std::nullopt;
 
@@ -55,6 +56,9 @@ namespace intp::interp {
         /// Allows for recursive reference
         void set(const fe::ast::Expression *expr_, std::shared_ptr<Env> env_,
                  std::optional<fe::loc::Loc> origin_ = std::nullopt);
+
+        void set_owned(fe::ast::Expression expr_, std::shared_ptr<Env> env_,
+                       std::optional<fe::loc::Loc> origin_ = std::nullopt);
     };
 
     struct Env : std::enable_shared_from_this<Env> {
@@ -66,6 +70,8 @@ namespace intp::interp {
         std::shared_ptr<Thunk> lookup(const std::string &name) const;
 
         void bind(const std::string &name, std::shared_ptr<Thunk> thunk);
+
+        void dump(std::ostream &os, bool force) const;
     };
 
     Value eval_expr(const fe::ast::Expression &expr, std::shared_ptr<Env> env);
@@ -80,7 +86,12 @@ namespace intp::interp {
         Value value;
     };
 
-    Result interpret(const fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env = std::nullopt);
+    struct Options {
+        bool own_expr = false;
+    };
+
+    Result interpret(fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env = std::nullopt,
+                     Options options = {});
 
     /// Add builtins Native Functions into Environment
     void install_builtins(const std::shared_ptr<Env> &env);

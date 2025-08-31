@@ -4,11 +4,18 @@
 
 namespace intp::interp {
     std::ostream &operator<<(std::ostream &os, const Closure &closure) {
-        return os << "<closure " << closure.param << ">";
+        return os << "<closure: " << closure.param << ">";
     }
 
     std::ostream &operator<<(std::ostream &os, const NativeFunction &native_fn) {
-        return os << "<native_fn " << native_fn.name << " " << native_fn.arity << ">";
+        return os << "<native_fn: " << native_fn.name << " " << native_fn.arity << ">";
+    }
+
+    static std::ostream &print_loc_prefix(std::ostream &os, const std::optional<fe::loc::Loc> &loc) {
+        if (loc.has_value()) {
+            return os << loc.value() << ": ";
+        }
+        return os;
     }
 
     std::ostream &operator<<(std::ostream &os, const Value &value) {
@@ -36,10 +43,8 @@ namespace intp::interp {
         }
         // Expression is not initialized
         if (!expr) {
-            if (origin) {
-                std::cerr << *origin << ": ";
-            }
-            std::cerr << "runtime error: forcing empty thunk";
+            print_loc_prefix(std::cerr, origin)
+                    << "runtime error: forcing empty thunk";
             exit(EXIT_FAILURE);
         }
         cached = eval_expr(*expr, env);
@@ -49,9 +54,21 @@ namespace intp::interp {
     void Thunk::set(const fe::ast::Expression *expr_, std::shared_ptr<Env> env_,
                     std::optional<fe::loc::Loc> origin_) {
         expr = expr_;
+        owned.reset();
         env = std::move(env_);
-        if (origin_) {
-            origin = std::move(origin_);
+        if (origin_.has_value()) {
+            origin = std::move(origin_.value());
+        }
+        cached.reset();
+    }
+
+    void Thunk::set_owned(fe::ast::Expression expr_, std::shared_ptr<Env> env_,
+                          std::optional<fe::loc::Loc> origin_) {
+        owned = std::make_unique<fe::ast::Expression>(std::move(expr_));
+        expr = owned.get();
+        env = std::move(env_);
+        if (origin_.has_value()) {
+            origin = std::move(origin_.value());
         }
         cached.reset();
     }
@@ -74,11 +91,36 @@ namespace intp::interp {
         table[name] = std::move(thunk);
     }
 
+    void Env::dump(std::ostream &os, const bool force) const {
+        for (const auto &[name, thunk]: table) {
+            os << "  " << name << " = ";
+            try {
+                if (force) {
+                    const Value &val = thunk->force();
+                    os << val;
+                } else {
+                    if (thunk->cached) {
+                        os << *(thunk->cached); // already computed
+                    } else {
+                        os << "<thunk: unevaluated>";
+                    }
+                }
+            } catch (const std::exception &ex) {
+                os << "<thunk: unevaluated>";
+            }
+            os << std::endl;
+        }
+        if (parent) {
+            os << "info: parent environment" << std::endl;
+            parent->dump(os, force);
+        }
+    }
+
     static Value eval_iden_ast_node(const fe::ast::IdenAstNode &iden_ast_node, const std::shared_ptr<Env> &env) {
         const auto thunk = env->lookup(iden_ast_node.value);
         if (!thunk) {
-            std::cerr << iden_ast_node.loc << ": runtime error: "
-                    << "undefined identifier "
+            print_loc_prefix(std::cerr, iden_ast_node.loc)
+                    << "runtime error: undefined identifier "
                     << iden_ast_node.value
                     << std::endl;
             exit(EXIT_FAILURE);
@@ -94,8 +136,8 @@ namespace intp::interp {
         // Lookup the callee lazily
         const auto callee_thunk = env->lookup(fn_apl.fn_name.value);
         if (!callee_thunk) {
-            std::cerr << fn_apl.loc << ": runtime error: "
-                    << "undefined function "
+            print_loc_prefix(std::cerr, fn_apl.loc)
+                    << "runtime error: undefined function "
                     << fn_apl.fn_name.value
                     << std::endl;
             exit(EXIT_FAILURE);
@@ -131,13 +173,6 @@ namespace intp::interp {
         auto t = std::make_shared<Thunk>();
         t->cached = v;
         return t;
-    }
-
-    static std::ostream &print_loc_prefix(std::ostream &os, const std::optional<fe::loc::Loc> &loc) {
-        if (loc) {
-            return os << *loc << ": ";
-        }
-        return os;
     }
 
     Value apply_fn_apl(Value fn_value, const std::vector<std::shared_ptr<Thunk> > &args,
@@ -237,25 +272,33 @@ namespace intp::interp {
     }
 
     // Creates placeholder Thunk then set body so recursion can refer to it during lazy evaluation
-    static void bind_def_ast_node_lazy(const fe::ast::DefAstNode &def_ast_node, const std::shared_ptr<Env> &env) {
+    static void bind_def_ast_node_lazy(fe::ast::DefAstNode &def_ast_node, const std::shared_ptr<Env> &env,
+                                       Options options) {
         const auto thunk = std::make_shared<Thunk>();
         env->bind(def_ast_node.def_name.value, thunk);
-        thunk->set(&def_ast_node.expr, env, def_ast_node.expr.get_loc());
+        if (options.own_expr) {
+            thunk->set_owned(std::move(def_ast_node.expr), env, def_ast_node.expr.get_loc());
+        } else {
+            thunk->set(&def_ast_node.expr, env, def_ast_node.expr.get_loc());
+        }
     }
 
-    Result interpret(const fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env) {
+    Result interpret(fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env,
+                     Options options) {
         if (!global_env) {
             global_env = std::make_shared<Env>();
+            install_builtins(*global_env);
         }
         Value result_value;
-        install_builtins(*global_env);
-        for (const auto &[value]: program.nodes) {
+        for (auto &[value]: program.nodes) {
             std::visit([&]<typename T0>(T0 &&arg) {
                 using T = std::decay_t<T0>;
                 if constexpr (std::is_same_v<T, fe::ast::Expression>) {
                     result_value = eval_expr(arg, *global_env);
                 } else if constexpr (std::is_same_v<T, fe::ast::DefAstNode>) {
-                    bind_def_ast_node_lazy(arg, *global_env);
+                    bind_def_ast_node_lazy(arg, *global_env, options);
+                    const fe::ast::DefAstNode &def_ast_node = arg;
+                    result_value = def_ast_node.def_name.value;
                 } else {
                     STATIC_ASSERT_UNREACHABLE_T(T, "unhandled program node");
                 }
