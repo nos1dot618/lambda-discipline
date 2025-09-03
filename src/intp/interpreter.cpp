@@ -1,9 +1,12 @@
 #include <lbd/intp/interpreter.h>
 #include <lbd/intp/builtins.h>
+#include <lbd/options.h>
 #include <lbd/error.h>
 #include <sstream>
 
 namespace intp::interp {
+    options::Options options_v;
+
     [[nodiscard]] std::string Closure::to_string() const {
         std::ostringstream oss;
         oss << "<closure: " << param << ">";
@@ -63,13 +66,6 @@ namespace intp::interp {
         return os << native_fn.to_string();
     }
 
-    static std::ostream &print_loc_prefix(std::ostream &os, const std::optional<fe::loc::Loc> &loc) {
-        if (loc.has_value()) {
-            return os << loc.value() << ": ";
-        }
-        return os;
-    }
-
     Thunk::Thunk(const fe::ast::Expression *expr, std::shared_ptr<Env> env,
                  std::optional<fe::loc::Loc> origin) : expr(expr), env(std::move(env)), origin(std::move(origin)) {
     }
@@ -80,9 +76,7 @@ namespace intp::interp {
         }
         // Expression is not initialized
         if (!expr) {
-            print_loc_prefix(std::cerr, origin)
-                    << "runtime error: forcing empty thunk";
-            exit(EXIT_FAILURE);
+            options_v.logger.error(origin, "runtime error: forcing empty thunk");
         }
         cached = eval_expr(*expr, env);
         return cached.value();
@@ -155,11 +149,7 @@ namespace intp::interp {
     static Value eval_iden_ast_node(const fe::ast::IdenAstNode &iden_ast_node, const std::shared_ptr<Env> &env) {
         const auto thunk = env->lookup(iden_ast_node.value);
         if (!thunk) {
-            print_loc_prefix(std::cerr, iden_ast_node.loc)
-                    << "runtime error: undefined identifier "
-                    << iden_ast_node.value
-                    << std::endl;
-            exit(EXIT_FAILURE);
+            options_v.logger.error(iden_ast_node.loc, "runtime error: undefined identifier ", iden_ast_node.value);
         }
         return thunk->force();
     }
@@ -172,11 +162,7 @@ namespace intp::interp {
         // Lookup the callee lazily
         const auto callee_thunk = env->lookup(fn_apl.fn_name.value);
         if (!callee_thunk) {
-            print_loc_prefix(std::cerr, fn_apl.loc)
-                    << "runtime error: undefined function "
-                    << fn_apl.fn_name.value
-                    << std::endl;
-            exit(EXIT_FAILURE);
+            options_v.logger.error(fn_apl.loc, "runtime error: undefined function ", fn_apl.fn_name.value);
         }
         const Value fn_value = callee_thunk->force();
         std::vector<std::shared_ptr<Thunk> > arg_thunks;
@@ -223,8 +209,7 @@ namespace intp::interp {
         while (true) {
             // If there are no frames left, that's unexpected (shouldn't happen), bail.
             if (frames.empty()) {
-                print_loc_prefix(std::cerr, call_loc)
-                        << "internal error: no function frame to apply" << std::endl;
+                options_v.logger.error(call_loc, "internal error: no function frame to apply");
                 std::exit(EXIT_FAILURE);
             }
             // If we've consumed all available Argument Thunks:
@@ -249,10 +234,8 @@ namespace intp::interp {
             else if (std::holds_alternative<std::shared_ptr<NativeFunction> >(current_fn)) {
                 const auto &[arity, name, impl] = *std::get<std::shared_ptr<NativeFunction> >(current_fn);
                 if (work_args.size() - idx < arity) {
-                    print_loc_prefix(std::cerr, call_loc)
-                            << "runtime error: native function " << name
-                            << " expects " << arity << " argument(s), found "
-                            << (work_args.size() - idx) << std::endl;
+                    options_v.logger.error(call_loc, "runtime error: native function ", name, " expects ", arity,
+                                           " argument(s), found ", work_args.size() - idx);
                     std::exit(EXIT_FAILURE);
                 }
                 std::vector<std::shared_ptr<Thunk> > slice;
@@ -264,14 +247,11 @@ namespace intp::interp {
                 idx += arity;
             } else {
                 // Top frame is not a Function (Closure, NativeFunction) Value but there are still Arguments left
-                print_loc_prefix(std::cerr, call_loc)
-                        << "runtime error: trying to apply non-function value "
-                        << frames.back() << std::endl;
+                options_v.logger.error(call_loc, "runtime error: trying to apply non-function value ", frames.back());
                 std::exit(EXIT_FAILURE);
             }
             if (!resultant_value) {
-                print_loc_prefix(std::cerr, call_loc)
-                        << "internal error: application produced no result" << std::endl;
+                options_v.logger.error(call_loc, "internal error: application produced no result");
                 std::exit(EXIT_FAILURE);
             }
             if (std::holds_alternative<Closure>(*resultant_value) ||
@@ -289,9 +269,8 @@ namespace intp::interp {
             // whole Function Application, but only valid if there are no further Argument Thunks remaining.
             if (frames.empty()) {
                 if (idx < work_args.size()) {
-                    print_loc_prefix(std::cerr, call_loc)
-                            << "runtime error: too many arguments applied to non-function value "
-                            << concrete << std::endl;
+                    options_v.logger.error(call_loc, "runtime error: too many arguments applied to non-function value ",
+                                           concrete);
                     std::exit(EXIT_FAILURE);
                 }
                 // No Thunks remaining then concrete Value is the result
@@ -309,7 +288,7 @@ namespace intp::interp {
 
     // Creates placeholder Thunk then set body so recursion can refer to it during lazy evaluation
     static void bind_def_ast_node_lazy(fe::ast::DefAstNode &def_ast_node, const std::shared_ptr<Env> &env,
-                                       const Options options) {
+                                       const options::Options options) {
         const auto thunk = std::make_shared<Thunk>();
         env->bind(def_ast_node.def_name.value, thunk);
         if (options.own_expr) {
@@ -320,7 +299,8 @@ namespace intp::interp {
     }
 
     Result interpret(fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env,
-                     Options options) {
+                     const options::Options options_) {
+        options_v = options_;
         if (!global_env) {
             global_env = std::make_shared<Env>();
             install_builtins(*global_env);
@@ -332,7 +312,7 @@ namespace intp::interp {
                 if constexpr (std::is_same_v<T, fe::ast::Expression>) {
                     result_value = eval_expr(arg, *global_env);
                 } else if constexpr (std::is_same_v<T, fe::ast::DefAstNode>) {
-                    bind_def_ast_node_lazy(arg, *global_env, options);
+                    bind_def_ast_node_lazy(arg, *global_env, options_v);
                     const fe::ast::DefAstNode &def_ast_node = arg;
                     result_value = def_ast_node.def_name.value;
                 } else {

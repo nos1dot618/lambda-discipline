@@ -6,6 +6,7 @@
 #include <variant>
 #include <lbd/fe/ast.h>
 #include <lbd/fe/parser.h>
+#include <lbd/options.h>
 
 namespace intp::interp {
     struct NativeFunction;
@@ -113,12 +114,8 @@ namespace intp::interp {
         Value value;
     };
 
-    struct Options {
-        bool own_expr = false;
-    };
-
     Result interpret(fe::ast::Program &program, std::optional<std::shared_ptr<Env> > global_env = std::nullopt,
-                     Options options = {});
+                     options::Options options_ = {});
 
     /// Add builtins Native Functions into Environment
     void install_builtins(const std::shared_ptr<Env> &env);

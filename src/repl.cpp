@@ -2,12 +2,15 @@
 #include <fstream>
 #include <iostream>
 #include <lbd/repl.h>
-#include <lbd/term.h>
+#include <lbd/utils/term.h>
 #include <lbd/fe/lexer.h>
 #include <lbd/fe/parser.h>
 #include <lbd/intp/interpreter.h>
+#include <lbd/exceptions.h>
 
 // TODO: Add support for clicking enter during lambda expression definition
+
+#define on_off(val) ((val) ? "on " : "off")
 
 namespace repl {
     static void process_load_command(const std::string &arg,
@@ -42,12 +45,13 @@ namespace repl {
         }
     }
 
-#define on_off(val) ((val) ? "on " : "off")
-
     void loop(const bool debug) {
         enable_virtual_terminal();
+
         static bool force_on_env_dump = false;
-        static bool debug_enabled = false;
+        static logs::Logger logger(false, true, false);
+        static options::Options options = {.own_expr = true, .debug = debug, .logger = logger};
+
         std::cout << colors::BLUE << "Welcome to lambda-discipline REPL.\nType :quit to exit."
                 << colors::RESET << std::endl;
         std::string line;
@@ -77,7 +81,7 @@ namespace repl {
                                 {":h, :help, :?", "", "Display this help message"},
                                 {":l, :load", "<filepath>", "Load file into REPL"},
                                 {":r, :reset", "", "Reset environment"},
-                                {":d, :debug", "", "Toogle debug mode"}
+                                {":d, :debug", "", "Toggle debug mode"}
                             }, colors::GREEN);
                 std::cout << std::endl;
                 print_table({"Inspection Commands", "Argument", "Description"}, {
@@ -86,7 +90,7 @@ namespace repl {
                             }, colors::GREEN);
                 std::cout << std::endl;
                 print_table({"Options", "State", "Help"}, {
-                                {"debug", on_off(debug_enabled), "use :debug to toggle"},
+                                {"debug", on_off(options.debug), "use :debug to toggle"},
                                 {"force-on-env-dump", on_off(force_on_env_dump), "use :force to toggle"}
                             }, colors::GREEN);
                 continue;
@@ -105,7 +109,7 @@ namespace repl {
                 continue;
             }
             if (line == ":debug" || line == ":d") {
-                debug_enabled = !debug_enabled;
+                options.debug = !options.debug;
                 continue;
             }
             if (line == ":force") {
@@ -124,26 +128,27 @@ namespace repl {
                 continue;
             }
             try {
-                // TODO: In case of error do not EXIT from the program
                 // Lex
-                fe::lexer::Lexer lexer(line, fe::lexer::FromRepl{});
-                const std::vector<fe::token::Token> tokens = lexer.lex_all();
-                if (debug) {
+                fe::lexer::Lexer lexer_v(line, fe::lexer::FromRepl{}, options);
+                const std::vector<fe::token::Token> tokens = lexer_v.lex_all();
+                if (options.debug) {
                     for (const auto &tok: tokens) {
                         std::cout << colors::YELLOW << tok << colors::RESET << std::endl;
                     }
                 }
+
                 // Parse
-                fe::parser::Parser parser(tokens);
-                if (debug) {
-                    std::cout << colors::YELLOW << parser.program << colors::RESET << std::endl;
+                fe::parser::Parser parser_v(tokens, options);
+                if (options.debug) {
+                    std::cout << colors::YELLOW << parser_v.program << colors::RESET << std::endl;
                 }
+
                 // Interpret
-                // TODO: Add flag to disable printing in REPL (disabled by default)
                 const auto [global_env, value] = intp::interp::interpret(
-                    parser.program, shared_global_env, {.own_expr = true});
+                    parser_v.program, shared_global_env, options);
                 std::cout << colors::GREEN << "=> " << value << colors::RESET << std::endl;
                 shared_global_env = global_env;
+            } catch (const ControlledExit &) {
             } catch (const std::exception &ex) {
                 std::cerr << colors::RED << "error: " << ex.what() << colors::RESET << std::endl;
             }
