@@ -6,12 +6,11 @@
 #include <lbd/exceptions.h>
 
 namespace logs {
-    class Logger {
+    struct Logger {
         bool exit_on_error = true;
         bool use_color = false;
         bool show_loc = true;
 
-    public:
         Logger() = default;
 
         Logger(const bool exit_on_error, const bool use_color, const bool show_loc) : exit_on_error(exit_on_error),
@@ -38,6 +37,29 @@ namespace logs {
                 exit(EXIT_FAILURE);
             }
             throw ControlledExit{};
+        }
+
+        template<typename... Args>
+        void info(Args &&... args) const {
+            log_impl(colors::BLUE, std::cout, std::forward<Args>(args)...);
+        }
+
+        template<typename... Args>
+        void debug(Args &&... args) const {
+            log_impl(colors::YELLOW, std::cout, std::forward<Args>(args)...);
+        }
+
+    private:
+        template<typename... Args>
+        void log_impl(const std::string &color, std::ostream &os, Args &&... args) const {
+            if (use_color) {
+                os << color;
+            }
+            (os << ... << std::forward<Args>(args));
+            if (use_color) {
+                os << colors::RESET;
+            }
+            os << std::endl;
         }
     };
 }

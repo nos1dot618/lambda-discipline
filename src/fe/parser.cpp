@@ -151,7 +151,11 @@ namespace fe::parser {
         loaded_files.insert(abs_path);
         auto lexer_v = lexer::Lexer(filepath, lexer::FromFile{}, options_v);
         const auto tokens = lexer_v.lex_all();
-        // TODO: Accept Options and Add a debug flag for printing Lexed Tokens
+        if (options_v.debug) {
+            for (const auto &tok: tokens) {
+                options_v.logger.debug(tok);
+            }
+        }
         for (Parser parser(tokens, options_v); auto &node: parser.program.nodes) {
             nodes.emplace_back(std::move(node));
         }
