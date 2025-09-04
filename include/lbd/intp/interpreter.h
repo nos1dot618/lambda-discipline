@@ -55,7 +55,7 @@ namespace intp::interp {
         using Impl = std::function<Value(
             const std::vector<std::shared_ptr<Thunk> > &, const std::shared_ptr<Env> &)>;
 
-        std::size_t arity;
+        int arity;
         std::string name;
         Impl impl;
 

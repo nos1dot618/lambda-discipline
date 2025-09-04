@@ -5,7 +5,7 @@
 #include <sstream>
 
 namespace intp::interp {
-    options::Options options_v;
+    static options::Options options_v;
 
     [[nodiscard]] std::string Closure::to_string() const {
         std::ostringstream oss;
@@ -21,7 +21,7 @@ namespace intp::interp {
         std::ostringstream oss;
         oss << "[";
         for (size_t i = 0; i < elements.size(); ++i) {
-            oss << elements[i].to_string();
+            oss << elements[i];
             if (i + 1 != elements.size()) {
                 oss << ", ";
             }
@@ -233,26 +233,33 @@ namespace intp::interp {
             // Native Function case: Consumes its arity-many Argument Thunks
             else if (std::holds_alternative<std::shared_ptr<NativeFunction> >(current_fn)) {
                 const auto &[arity, name, impl] = *std::get<std::shared_ptr<NativeFunction> >(current_fn);
-                if (work_args.size() - idx < arity) {
-                    options_v.logger.error(call_loc, "runtime error: native function ", name, " expects ", arity,
-                                           " argument(s), found ", work_args.size() - idx);
-                    std::exit(EXIT_FAILURE);
+                if (arity != -1) {
+                    if (work_args.size() - idx < arity) {
+                        options_v.logger.error(call_loc, "runtime error: native function ", name, " expects ", arity,
+                                               " argument(s), found ", work_args.size() - idx);
+                    }
+                    std::vector<std::shared_ptr<Thunk> > slice;
+                    slice.reserve(arity);
+                    for (size_t i = 0; i < arity; ++i) {
+                        slice.push_back(work_args[idx + i]);
+                    }
+                    resultant_value = impl(slice, call_site_env);
+                    idx += arity;
+                } else {
+                    std::vector<std::shared_ptr<Thunk> > slice;
+                    slice.reserve(args.size() - idx);
+                    for (size_t i = 0; i < args.size() - idx; ++i) {
+                        slice.push_back(work_args[idx + i]);
+                    }
+                    resultant_value = impl(slice, call_site_env);
+                    idx += args.size() - idx;
                 }
-                std::vector<std::shared_ptr<Thunk> > slice;
-                slice.reserve(arity);
-                for (size_t i = 0; i < arity; ++i) {
-                    slice.push_back(work_args[idx + i]);
-                }
-                resultant_value = impl(slice, call_site_env);
-                idx += arity;
             } else {
                 // Top frame is not a Function (Closure, NativeFunction) Value but there are still Arguments left
                 options_v.logger.error(call_loc, "runtime error: trying to apply non-function value ", frames.back());
-                std::exit(EXIT_FAILURE);
             }
             if (!resultant_value) {
                 options_v.logger.error(call_loc, "internal error: application produced no result");
-                std::exit(EXIT_FAILURE);
             }
             if (std::holds_alternative<Closure>(*resultant_value) ||
                 std::holds_alternative<std::shared_ptr<NativeFunction> >(*resultant_value)) {
@@ -324,7 +331,7 @@ namespace intp::interp {
     }
 
     void install_builtins(const std::shared_ptr<Env> &env) {
-        for (auto &native_fn: get_builtins()) {
+        for (auto &native_fn: get_builtins(options_v)) {
             const auto thunk = std::make_shared<Thunk>();
             thunk->cached = Value{std::make_shared<NativeFunction>(native_fn)};
             env->bind(native_fn.name, thunk);
