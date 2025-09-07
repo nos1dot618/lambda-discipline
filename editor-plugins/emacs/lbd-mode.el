@@ -31,12 +31,15 @@
   "Syntax table for lbd-mode.")
 
 ;; Comment settings
-(setq-local comment-start "-- ")
+(setq-local comment-start "--")
 (setq-local comment-end "")
 
 ;; Font lock
 (defconst lbd--keywords
-  '("true" "false" "if_then" "pair" "first" "second" "use")
+  '("true" "false" "if_then" "pair" "first" "second" "use"
+    "print" "add" "sub" "mul" "cmp" "if_zero" "sort" "parse_float"
+    "list" "list_size" "list_get" "list_remove" "list_append" "map" "transpose" "zip" "foldr"
+    "slurp_file" "lines" "split")
   "Language keywords for lbd-mode.")
 
 (defvar lbd-font-lock-keywords
