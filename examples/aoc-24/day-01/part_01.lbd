@@ -1,25 +1,9 @@
 -- Problem Link: <https://adventofcode.com/2024/day/1>
 
--- TODO: Use does not work
--- use "examples/std.lbd"
-
--- NOTE: Copied from examples/std.lbd
-true: Bool = \x: Any. \y: Any. x
-false: Bool = \x: Any. \y: Any. y
-
-if_then: Any = \condition: Any.
-    \then_clause: Any. \else_clause: Any.
-        (condition then_clause else_clause)
-
-lt: Float -> Float -> Bool = \x: Float. \y: Float.
-    (if_zero (cmp (cmp x y) -1) true false)
---------------------------------------
+use "examples/std.lbd"
 
 content: String = (slurp_file "examples/aoc-24/day-01/input.txt")
 entries: List = (lines content)
-
--- TODO: Make a general builtin for this
-rot_2: Any -> Any -> Any -> Any = \fn: Any. \x: Any. \y: Any. (fn y x)
 
 -- TODO: Add support for un-named Lambda Expressions
 tmp: String -> Any = \x: String. (rot_2 split "   " x)
@@ -29,7 +13,6 @@ cols: List = (transpose (map tmp entries))
 tmp2: List -> Any = \x: List. (map parse_float x)
 lists: List = (map sort (map tmp2 cols))
 
-abs: Float -> Float = \x: Float. (if_then (lt x 0) (mul -1 x) x)
 tmp3: List -> Float = \x: List. (abs (sub (list_get x 0) (list_get x 1)))
 add2: Float -> Float -> Float = \x: Float. \y: Float. (add y x)
 res: Float = (foldr add2 0 (map tmp3 (zip lists)))

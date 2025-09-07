@@ -34,6 +34,11 @@ namespace repl {
         }
 
         fe::parser::Parser parser(tokens, sub_options);
+        if (sub_options.debug) {
+            for (const auto &node: parser.program.nodes) {
+                sub_options.logger.debug(node);
+            }
+        }
 
         const std::optional<std::shared_ptr<intp::interp::Env> > temp_env = shared_env;
         // Merge loaded_env into shared_env
