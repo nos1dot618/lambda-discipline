@@ -1,9 +1,9 @@
 ;;; lbd-mode.el --- Major mode for Lambda-Discipline Language -*- lexical-binding: t; -*-
 ;;
-;; Author: NinthCircle
+;; Author: Lakshay Chauhan
 ;; Version: 0.1
 ;; Keywords: languages
-;; URL: https://gitlab.com/ninthcircle/lambda-discipline/-/tree/master/editor-plugins/emacs/lbd-mode.el
+;; URL: https://raw.githubusercontent.com/nos1dot618/lambda-discipline/refs/heads/master/editor-plugins/emacs/lbd-mode.el
 
 (defvar lbd-mode-hook nil)
 
