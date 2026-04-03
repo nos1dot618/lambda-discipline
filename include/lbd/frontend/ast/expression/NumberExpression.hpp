@@ -4,14 +4,14 @@
 
 namespace lbd::frontend::ast::expression
 {
-    class StringExpression final : Expression
+    class NumberExpression final : Expression
     {
     public:
-        StringExpression(const source::Range& range, std::string value) noexcept;
+        NumberExpression(const source::Range& range, double value) noexcept;
 
         void print(std::ostream& outputStream, size_t indent) const noexcept override;
 
     private:
-        std::string value;
+        double value;
     };
 }
