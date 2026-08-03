@@ -7,8 +7,17 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        include:
+          - os: ubuntu-latest
+            toolchain: gcc
+
+          - os: windows-latest
+            toolchain: mingw
+
+          - os: windows-latest
+            toolchain: visual-studio
 
     runs-on: ${{ matrix.os }}
 
@@ -21,11 +30,21 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Set up MinGW
+        if: matrix.toolchain == 'mingw'
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+
+      - name: Configure MSVC Developer Command Prompt
+        if: matrix.toolchain == 'visual-studio'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Build CMake project
         run: |
-          python make.py setup
-          python make.py build
+          python make.py --toolchain ${{ matrix.toolchain }} setup
+          python make.py --toolchain ${{ matrix.toolchain }} build
 
       - name: Run Golden Tests
         run: |
-          python make.py test
+          python make.py --toolchain ${{ matrix.toolchain }} test
