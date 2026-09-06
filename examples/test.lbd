@@ -1,3 +1,0 @@
-use "examples/std.lbd"
-
-(print (eq 1 0))

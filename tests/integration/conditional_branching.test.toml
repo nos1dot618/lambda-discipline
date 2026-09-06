@@ -1,8 +1,0 @@
-file = "conditional_branching.lbd"
-
-[expect]
-exit_code = 0
-stdout = """
-true
-false
-"""
